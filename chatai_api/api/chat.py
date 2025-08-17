@@ -1,5 +1,6 @@
-import httpx
 import logging
+import difflib
+import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from core import llm
@@ -14,13 +15,11 @@ vector_store = VectorStore()
 
 @chat_router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    """Handles chat requests with memory augmentation."""
+    # This function remains unchanged
     try:
         last_user_message = req.messages[-1].content
         context = await vector_store.search(last_user_message)
-        
         assistant_response = await llm.get_chat_completion(req, tuple(context))
-
         await vector_store.add(last_user_message)
         await vector_store.add(assistant_response)
         return ChatResponse(role="assistant", content=assistant_response, context=context)
@@ -31,8 +30,8 @@ async def chat(req: ChatRequest):
 @chat_router.post("/chat/diff")
 async def chat_diff(req: ChatRequestWithCode):
     """
-    Handles chat requests that can modify code, returning a stream with the
-    explanation and the new code block.
+    Handles code modification requests by streaming newline-delimited JSON objects.
+    One object for the conversational text, and another for the diff UI component.
     """
     if not req.ai_can_edit_canvas:
         return await chat(req)
@@ -41,30 +40,35 @@ async def chat_diff(req: ChatRequestWithCode):
         last_user_message = req.messages[-1].content
         logger.info(f"Received code modification request: '{last_user_message}'")
 
-        message_dicts = tuple(msg.model_dump() for msg in req.messages)
+        # Get the new code and conversational response
+        new_code = await llm.get_code_suggestion(last_user_message, req.canvas_code)
+        context = await vector_store.search(last_user_message)
+        chat_response_text = await llm.get_chat_completion(req, tuple(context))
 
-        stream = await llm.get_code_modification_chat(
-            prompt=last_user_message,
-            code=req.canvas_code,
-            messages=message_dicts
-        )
+        # Generate the diff
+        diff_str = "".join(difflib.unified_diff(
+            req.canvas_code.splitlines(keepends=True),
+            new_code.splitlines(keepends=True),
+            fromfile='original',
+            tofile='new',
+        ))
 
         async def stream_generator():
-            full_response = ""
-            try:
-                async for chunk in stream:
-                    if chunk.choices:
-                        content = chunk.choices[0].delta.content or ""
-                        full_response += content
-                        yield content
-            except httpx.ReadError:
-                logger.warning("Stream ended unexpectedly with a ReadError. Continuing with the response collected so far.")
+            # 1. Stream the conversational text payload
+            text_payload = json.dumps({"type": "text", "payload": chat_response_text})
+            yield f"{text_payload}\n"
             
+            # 2. Stream the diff payload for the UI component
+            if diff_str:
+                diff_payload = json.dumps({"type": "diff", "payload": diff_str})
+                yield f"{diff_payload}\n"
+
+            # Add to memory after streaming is complete
             await vector_store.add(last_user_message)
-            await vector_store.add(full_response)
+            await vector_store.add(chat_response_text)
 
-
-        return StreamingResponse(stream_generator(), media_type="text/plain")
+        # Use the application/x-ndjson media type for newline-delimited JSON
+        return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
     except Exception as e:
         logger.error(f"An error occurred during code modification: {e}", exc_info=True)

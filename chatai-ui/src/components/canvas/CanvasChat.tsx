@@ -7,7 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ChatMessage from "@/components/chat/ChatMessage";
 import DiffViewer from "./DiffViewer";
 import { applyPatch } from 'diff';
-import { Message } from "@/types";
+
+interface Message {
+    role: "user" | "assistant";
+    content: string;
+}
 
 interface CanvasChatProps {
     canvasCode: string;
@@ -60,21 +64,33 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
 
                 accumulatedResponse += decoder.decode(value, { stream: true });
 
+                const uiStartMarker = "<--GENERATE_UI-->";
+                const uiEndMarker = "<--/GENERATE_UI-->";
+
+                if (accumulatedResponse.includes(uiEndMarker)) {
+                    const uiSection = accumulatedResponse.substring(
+                        accumulatedResponse.indexOf(uiStartMarker) + uiStartMarker.length,
+                        accumulatedResponse.indexOf(uiEndMarker)
+                    ).trim();
+
+                    try {
+                        const uiData = JSON.parse(uiSection);
+                        if (uiData.component === 'diff') {
+                            setDiff(uiData.props.diffText);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse UI component JSON:", e);
+                    }
+
+                    // Remove the UI part from the conversational text
+                    accumulatedResponse = accumulatedResponse.substring(0, accumulatedResponse.indexOf(uiStartMarker)).trim();
+                }
+
                 setMessages((prev) => {
                     const updatedMessages = [...prev];
                     updatedMessages[updatedMessages.length - 1].content = accumulatedResponse;
                     return updatedMessages;
                 });
-            }
-
-            const diffStartMarker = "--- DIFF ---";
-            const diffEndMarker = "--- END DIFF ---";
-            if (accumulatedResponse.includes(diffStartMarker)) {
-                const diffSection = accumulatedResponse.substring(
-                    accumulatedResponse.indexOf(diffStartMarker) + diffStartMarker.length,
-                    accumulatedResponse.indexOf(diffEndMarker)
-                ).trim();
-                setDiff(diffSection);
             }
 
         } catch (error) {

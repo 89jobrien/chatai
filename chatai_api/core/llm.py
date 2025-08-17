@@ -1,5 +1,4 @@
 import httpx
-# from functools import lru_cache
 from async_lru import alru_cache
 from typing import Tuple
 from openai import AsyncAzureOpenAI
@@ -25,7 +24,6 @@ def to_openai_message(msg):
 @alru_cache(maxsize=128)
 async def get_chat_completion(req: ChatRequest, context: Tuple[str, ...]) -> str:
     """Gets a chat completion from Azure OpenAI."""
-    # This function remains cached as it's more likely to have repeated requests.
     system_prompt = (
         "You are a helpful AI assistant. "
         "Use the following context from our past conversation to answer the user's question. "
@@ -50,27 +48,28 @@ async def get_chat_completion(req: ChatRequest, context: Tuple[str, ...]) -> str
     return str(response.choices[0].message.content)
 
 
-async def get_code_modification_chat(prompt: str, code: str, messages: Tuple[dict, ...]):
+async def get_code_suggestion(prompt: str, code: str) -> str:
     """
-    Gets a conversational response that includes an explanation and a full code block.
+    Gets a code suggestion from Azure OpenAI based on a prompt and existing code.
     """
     system_prompt = (
         "You are an expert programmer AI. Your task is to help the user with their code. "
-        "First, provide a brief, friendly explanation of the changes you are making. "
-        "Then, provide the complete, updated code in a single markdown code block. "
+        "Based on the user's request, provide the complete, updated code in a single markdown code block. "
         "If no changes are necessary, explain that and still provide the original code in a block."
+        "If the user's request is not related to the code, explain that and provide the original code."
+        "Only provide the full code snippet and nothing else."
     )
     
-    openai_messages = [to_openai_message({"role": "system", "content": system_prompt})]
-    for msg in messages:
-        openai_messages.append(to_openai_message(msg))
-
     final_prompt = (
         f"{prompt}\n\n"
         "Here is the code I am working on:\n"
         f"```python\n{code}\n```"
     )
-    openai_messages.append(to_openai_message({"role": "user", "content": final_prompt}))
+    
+    openai_messages = [
+        to_openai_message({"role": "system", "content": system_prompt}),
+        to_openai_message({"role": "user", "content": final_prompt})
+    ]
 
     async with httpx.AsyncClient(verify=False, timeout=60.0) as client:
         chat_client = AsyncAzureOpenAI(
@@ -80,9 +79,10 @@ async def get_code_modification_chat(prompt: str, code: str, messages: Tuple[dic
             http_client=client,
         )
         
-        return await chat_client.chat.completions.create(
+        response = await chat_client.chat.completions.create(
             model=str(settings.AZURE_LLM),
             messages=openai_messages,
             max_completion_tokens=settings.MAX_COMPLETION_TOKENS,
-            stream=True
         )
+        
+    return str(response.choices[0].message.content)
