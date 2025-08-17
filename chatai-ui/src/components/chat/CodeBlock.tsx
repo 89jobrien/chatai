@@ -1,42 +1,35 @@
+// chatai-ui/src/components/chat/CodeBlock.tsx
+
 "use client";
 
-import React, { useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
-type CodeBlockProps = {
-    children?: React.ReactNode;
-    rawCode: string;
-};
+// Define the props for the component
+interface CodeBlockProps {
+    language: string;
+    code: string;
+}
 
-export default function CodeBlock({ children, rawCode }: CodeBlockProps) {
-    const [copied, setCopied] = useState(false);
+export default function CodeBlock({ language, code }: CodeBlockProps) {
+    const [isCopied, setIsCopied] = useState(false);
 
-    const onCopy = () => {
-        navigator.clipboard.writeText(rawCode);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = () => {
+        navigator.clipboard.writeText(code);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
     };
 
     return (
-        <div className="bg-gray-800/50 dark:bg-gray-900/50 rounded-lg my-4 overflow-hidden">
-            <div className="flex justify-end items-center px-4 py-2 bg-gray-700/50 dark:bg-gray-800/50">
-                <button
-                    onClick={onCopy}
-                    className="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors"
-                >
-                    {copied ? (
-                        <>
-                            <Check size={14} /> Copied!
-                        </>
-                    ) : (
-                        <>
-                            <Copy size={14} />
-                        </>
-                    )}
-                </button>
+        <div className="bg-gray-800 rounded-md my-2">
+            <div className="flex items-center justify-between px-4 py-1 bg-gray-700 rounded-t-md">
+                <span className="text-sm text-gray-300">{language}</span>
+                <Button onClick={handleCopy} variant="ghost" size="sm" className="text-white">
+                    {isCopied ? "Copied!" : "Copy"}
+                </Button>
             </div>
-            <pre className="p-4 text-lg overflow-x-auto font-mono">
-                <code>{children}</code>
+            <pre className="p-4 text-sm text-white overflow-x-auto">
+                <code>{code}</code>
             </pre>
         </div>
     );

@@ -1,30 +1,24 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronsRight } from 'lucide-react';
 import ChatMessage from '@/components/chat/ChatMessage';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ApiStatusIndicator from '@/components/utility/ApiStatusIndicator';
 import { apiUrl } from '@/constants/util';
 
-type Message = {
-    role: "user" | "assistant" | "system";
-    content: string;
-};
+// This interface must match the one in ChatMessage.tsx
+interface Message {
+    role: "user" | "model";
+    parts: { text: string }[];
+}
 
 interface ChatPanelProps {
-    messages: Message[];
-    input: string;
-    loading: boolean;
     isCanvasCollapsed: boolean;
     onToggleCanvas: () => void;
-    onInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-    onSend: () => void;
-    bottomRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const containerVariants = {
@@ -38,16 +32,63 @@ const containerVariants = {
 };
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
-    messages,
-    input,
-    loading,
     isCanvasCollapsed,
     onToggleCanvas,
-    onInputChange,
-    onKeyDown,
-    onSend,
-    bottomRef,
 }) => {
+    const [history, setHistory] = useState<Message[]>([]);
+    const [prompt, setPrompt] = useState("");
+    const [loading, setLoading] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(scrollToBottom, [history]);
+
+    const send = async () => {
+        if (!prompt || loading) return;
+
+        setLoading(true);
+        const userMessage: Message = { role: "user", parts: [{ text: prompt }] };
+        const newHistory = [...history, userMessage];
+        setHistory(newHistory);
+        setPrompt("");
+
+        try {
+            const response = await fetch(`${apiUrl}/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: newHistory }),
+            });
+
+            if (!response.body) throw new Error("No response body");
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedResponse = "";
+
+            setHistory((prev) => [...prev, { role: "model", parts: [{ text: "" }] }]);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                accumulatedResponse += decoder.decode(value, { stream: true });
+                setHistory((prev) => {
+                    const updatedHistory = [...prev];
+                    updatedHistory[updatedHistory.length - 1].parts[0].text = accumulatedResponse;
+                    return updatedHistory;
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch:", error);
+            const errorMessage: Message = { role: "model", parts: [{ text: "Sorry, something went wrong." }] };
+            setHistory((prev) => [...prev, errorMessage]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <Card className="h-full flex flex-col">
             <CardHeader>
@@ -63,24 +104,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
                 <ApiStatusIndicator />
             </CardHeader>
-            {/* FIX: Add overflow-hidden to constrain the child element */}
             <CardContent className="flex-grow flex flex-col overflow-hidden">
-                {/* FIX: Remove h-full to allow flexbox to correctly calculate height */}
                 <motion.div
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
                     className="border rounded-md overflow-y-auto p-4 flex-grow"
                 >
-                    {messages
-                        .filter((m) => m.role !== 'system')
-                        .map((m, idx) => (
-                            <ChatMessage
-                                key={idx}
-                                role={m.role}
-                                content={m.content.split('\n---\n\nUser Message:\n---\n')[1] || m.content}
-                            />
-                        ))}
+                    {history.map((m, idx) => (
+                        <ChatMessage
+                            key={idx}
+                            message={m}
+                        />
+                    ))}
                     {loading && (
                         <motion.div
                             initial={{ opacity: 0.5 }}
@@ -91,18 +127,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             Assistant is typing...
                         </motion.div>
                     )}
-                    <div ref={bottomRef} />
+                    <div ref={messagesEndRef} />
                 </motion.div>
                 <div className="flex gap-2 mt-4 flex-shrink-0">
-                    <Input
-                        value={input}
-                        onChange={onInputChange}
-                        onKeyDown={onKeyDown}
+                    <Textarea
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                         placeholder="Type your message and press Enter..."
                         className="flex-1"
                         disabled={loading}
                     />
-                    <Button onClick={onSend} disabled={loading}>
+                    <Button onClick={send} disabled={loading}>
                         Send
                     </Button>
                 </div>

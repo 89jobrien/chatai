@@ -228,3 +228,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+/chatai_api/chroma_db

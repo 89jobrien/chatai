@@ -1,168 +1,138 @@
-"use client"
+// chatai-ui/src/components/canvas/CanvasChat.tsx
 
-import React, { useState, useRef, useEffect } from "react";
-import { Panel, PanelGroup, PanelResizeHandle, ImperativePanelHandle } from "react-resizable-panels";
-// import 'prismjs/components/prism-clike';
-// import 'prismjs/components/prism-javascript';
-// import 'prismjs/components/prism-typescript';
-// import 'prismjs/components/prism-python';
-// import 'prismjs/components/prism-css';
-// import 'prismjs/components/prism-markup';
+"use client";
 
-import { useApiStatus } from "@/context/ApiStatusContext";
-import { apiUrl } from "@/constants/util";
-import CanvasPanel from '@/components/canvas/CanvasPanel';
-import ChatPanel from '@/components/canvas/ChatPanel';
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import ChatMessage from "@/components/chat/ChatMessage";
+import { applyPatch } from 'diff';
 
-type Message = {
-    role: "user" | "assistant" | "system";
-    content: string;
-};
+interface Message {
+    role: "user" | "model";
+    parts: { text: string }[];
+}
 
-export default function CanvasChat() {
-    const { setApiEndpoint } = useApiStatus();
-    const [messages, setMessages] = useState<Message[]>([
-        { role: "system", content: "You are a helpful assistant. You can edit the canvas if the user allows it." },
-    ]);
-    const [input, setInput] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [canvasContent, setCanvasContent] = useState("function helloWorld() {\n  console.log('Hello, world!');\n}");
-    const [userHasEditedCanvas, setUserHasEditedCanvas] = useState(false);
-    const [aiCanEditCanvas, setAiCanEditCanvas] = useState(false);
-    const [isCanvasCollapsed, setIsCanvasCollapsed] = useState(false);
+interface CanvasChatProps {
+    canvasCode: string;
+    setCanvasCode: (code: string) => void;
+}
 
-    const canvasPanelRef = useRef<ImperativePanelHandle>(null);
-    const bottomRef = useRef<HTMLDivElement>(null);
+export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProps) {
+    const [history, setHistory] = useState<Message[]>([]);
+    const [prompt, setPrompt] = useState("");
+    const [diff, setDiff] = useState<string | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, loading]);
-
-    const handleCanvasChange = (code: string) => {
-        setCanvasContent(code);
-        setUserHasEditedCanvas(true);
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    const toggleCanvas = () => {
-        const panel = canvasPanelRef.current;
-        if (panel) {
-            if (isCanvasCollapsed) {
-                panel.expand();
-            } else {
-                panel.collapse();
-            }
-        }
-    };
+    useEffect(scrollToBottom, [history]);
 
     const send = async () => {
-        const trimmed = input.trim();
-        if (!trimmed) return;
+        if (!prompt) return;
 
-        let prompt = trimmed;
-        if (userHasEditedCanvas && canvasContent.trim()) {
-            prompt = `Canvas Content:\n---\n${canvasContent}\n---\n\nUser Message:\n---\n${trimmed}`;
-        }
-
-        const userMsg: Message = { role: "user", content: prompt };
-        const newMessages = [...messages, userMsg];
-
-        setMessages(newMessages);
-        setInput("");
-        setLoading(true);
-        const endpoint = `${apiUrl}/chat`;
-        setApiEndpoint(endpoint);
+        const userMessage: Message = { role: "user", parts: [{ text: prompt }] };
+        setHistory((prev) => [...prev, userMessage]);
+        setPrompt("");
 
         try {
-            const payload = {
-                messages: newMessages.map((m) => ({
-                    role: m.role,
-                    content: m.content,
-                })),
-                temperature: 0.7,
-                max_tokens: 16384,
-                ai_can_edit_canvas: aiCanEditCanvas,
-            };
-
-            const res = await fetch(`${apiUrl}/chat`, {
+            const response = await fetch("http://127.0.0.1:8000/chat/diff", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    messages: [...history, userMessage],
+                    ai_can_edit_canvas: true,
+                    canvas_code: canvasCode,
+                }),
             });
 
-            if (!res.ok) {
-                const text = await res.text();
-                throw new Error(text || `Request failed: ${res.status}`);
+            if (!response.body) throw new Error("No response body");
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedResponse = "";
+
+            setHistory((prev) => [...prev, { role: 'model', parts: [{ text: '' }] }]);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                accumulatedResponse += decoder.decode(value, { stream: true });
+
+                const diffStartMarker = "--- DIFF ---";
+                const diffEndMarker = "--- END DIFF ---";
+
+                if (accumulatedResponse.includes(diffEndMarker)) {
+                    const diffSection = accumulatedResponse.substring(
+                        accumulatedResponse.indexOf(diffStartMarker) + diffStartMarker.length + 1,
+                        accumulatedResponse.indexOf(diffEndMarker)
+                    );
+                    setDiff(diffSection);
+                    accumulatedResponse = accumulatedResponse.substring(accumulatedResponse.indexOf(diffEndMarker) + diffEndMarker.length + 1);
+                }
+
+                setHistory((prev) => {
+                    const newHistory = [...prev];
+                    newHistory[newHistory.length - 1].parts[0].text = accumulatedResponse;
+                    return newHistory;
+                });
             }
-
-            const data = await res.json();
-            const assistantMsg: Message = {
-                role: "assistant",
-                content: data.content,
-            };
-
-            setMessages((prev) => [...prev, assistantMsg]);
-
-            if (aiCanEditCanvas && data.canvas_content) {
-                setCanvasContent(data.canvas_content);
-                setUserHasEditedCanvas(false);
-            }
-
-        } catch (err: any) {
-            const errMsg = err?.message ?? "Unknown error";
-            setMessages((prev) => [
-                ...prev,
-                { role: "assistant", content: `Error: ${errMsg}` },
-            ]);
-        } finally {
-            setLoading(false);
-            setApiEndpoint(null);
+        } catch (error) {
+            console.error("Failed to fetch:", error);
+            const errorMessage: Message = { role: "model", parts: [{ text: "Sorry, something went wrong." }] };
+            setHistory((prev) => [...prev, errorMessage]);
         }
     };
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            send();
+    const handleApplyDiff = () => {
+        if (diff) {
+            const newCode = applyPatch(canvasCode, diff);
+            if (newCode === false) {
+                console.error("Failed to apply patch");
+                // Optionally, inform the user that the patch could not be applied
+            } else {
+                setCanvasCode(newCode);
+            }
+            setDiff(null);
         }
     };
+
+    const handleRejectDiff = () => setDiff(null);
 
     return (
-        <div className="container py-4 h-[calc(100vh-5rem)]">
-            <PanelGroup direction="horizontal" className="w-full h-full">
-                <Panel
-                    ref={canvasPanelRef}
-                    defaultSize={50}
-                    minSize={25}
-                    collapsible={true}
-                    onCollapse={() => setIsCanvasCollapsed(true)}
-                    onExpand={() => setIsCanvasCollapsed(false)}
-                    className="transition-all duration-300 ease-in-out"
-                >
-                    <CanvasPanel
-                        canvasContent={canvasContent}
-                        aiCanEditCanvas={aiCanEditCanvas}
-                        onCanvasChange={handleCanvasChange}
-                        onAiCanEditChange={setAiCanEditCanvas}
-                        onToggle={toggleCanvas}
+        <Card className="flex flex-col h-full">
+            <CardHeader><CardTitle>Chat</CardTitle></CardHeader>
+            <CardContent className="flex-grow overflow-y-auto">
+                <div className="space-y-4">
+                    {history.map((message, index) => <ChatMessage key={index} message={message} />)}
+                    <div ref={messagesEndRef} />
+                </div>
+            </CardContent>
+            {diff && (
+                <div className="p-4 border-t bg-slate-50">
+                    <h4 className="font-bold mb-2">Suggested Changes ✨</h4>
+                    <pre className="bg-gray-100 p-2 rounded-md overflow-x-auto text-sm">{diff}</pre>
+                    <div className="flex justify-end gap-2 mt-2">
+                        <Button onClick={handleApplyDiff} size="sm">Accept</Button>
+                        <Button onClick={handleRejectDiff} size="sm" variant="outline">Reject</Button>
+                    </div>
+                </div>
+            )}
+            <div className="p-4 border-t">
+                <div className="flex gap-2">
+                    <Textarea
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        placeholder="Type your message here."
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                     />
-                </Panel>
-                <PanelResizeHandle className="w-4 flex items-center justify-center">
-                    <div className="w-1 h-10 bg-border rounded-full" />
-                </PanelResizeHandle>
-                <Panel defaultSize={50} minSize={25}>
-                    <ChatPanel
-                        messages={messages}
-                        input={input}
-                        loading={loading}
-                        isCanvasCollapsed={isCanvasCollapsed}
-                        onToggleCanvas={toggleCanvas}
-                        onInputChange={(e) => setInput(e.target.value)}
-                        onKeyDown={onKeyDown}
-                        onSend={send}
-                        bottomRef={bottomRef}
-                    />
-                </Panel>
-            </PanelGroup>
-        </div>
+                    <Button onClick={send}>Send</Button>
+                </div>
+            </div>
+        </Card>
     );
 }

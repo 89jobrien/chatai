@@ -1,80 +1,55 @@
-import React from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
-import { motion, Variants } from "framer-motion";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+// chatai-ui/src/components/chat/ChatMessage.tsx
+
+"use client";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CodeBlock from "./CodeBlock";
 
-type ChatMessageProps = {
-    role: "user" | "assistant" | "system";
-    content: string;
-};
+interface Message {
+    role: "user" | "model";
+    parts: { text: string }[];
+}
 
-const getNodeText = (node: any): string => {
-    if (!node || !node.children) return '';
-    return node.children.map((child: any) => {
-        if (child.type === 'text') return child.value;
-        if (child.children) return getNodeText(child);
-        return '';
-    }).join('');
-};
+interface ChatMessageProps {
+    message: Message;
+}
 
-const messageVariants: Variants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
-};
-
-export default function ChatMessage({ role, content }: ChatMessageProps) {
-    const isUser = role === "user";
+export default function ChatMessage({ message }: ChatMessageProps) {
+    const { role, parts } = message;
+    const isModel = role === "model";
 
     return (
-        <motion.div
-            variants={messageVariants}
-            className={`flex items-start gap-4 mb-4 ${isUser ? "justify-end" : "justify-start"
-                }`}
-        >
-            {!isUser && (
-                <Avatar className="w-10 h-10 border">
-                    <AvatarFallback>AI</AvatarFallback>
+        <div className={`flex items-start gap-4 ${isModel ? "" : "justify-end"}`}>
+            {isModel && (
+                <Avatar className="w-8 h-8">
+                    <AvatarImage src="/bot-avatar.png" alt="Bot" />
+                    <AvatarFallback>B</AvatarFallback>
                 </Avatar>
             )}
-
             <div
-                className={`p-4 rounded-lg shadow-md text-left min-w-0 ${isUser
-                    ? "chat-bubble-user bg-primary text-primary-foreground text-right"
-                    : "chat-bubble-assistant bg-card text-card-foreground border"
+                className={`rounded-lg p-3 max-w-[85%] ${isModel ? "bg-muted" : "bg-primary text-primary-foreground"
                     }`}
             >
-                <div className="text-md">
-                    <ReactMarkdown
-                        rehypePlugins={[rehypeHighlight]}
-                        components={{
-                            code({ node, className, children, ...props }) {
-                                const match = /language-(\w+)/.exec(className || "");
-                                const rawText = getNodeText(node);
-
-                                return match ? (
-                                    <CodeBlock rawCode={rawText.replace(/\n$/, "")}>
-                                        {children}
-                                    </CodeBlock>
-                                ) : (
-                                    <code className="bg-gray-500/20 px-1 py-0.5 rounded-sm font-mono">
-                                        {children}
-                                    </code>
-                                );
-                            },
-                        }}
-                    >
-                        {content}
-                    </ReactMarkdown>
-                </div>
+                {parts.map((part, index) => {
+                    const codeMatch = part.text.match(/```(\w+)?\n([\s\S]+?)```/);
+                    if (codeMatch) {
+                        const language = codeMatch[1] || "plaintext";
+                        const code = codeMatch[2];
+                        return <CodeBlock key={index} language={language} code={code} />;
+                    }
+                    return (
+                        <p key={index} className="whitespace-pre-wrap">
+                            {part.text}
+                        </p>
+                    );
+                })}
             </div>
-
-            {isUser && (
-                <Avatar className="w-10 h-10 border">
-                    <AvatarFallback>You</AvatarFallback>
+            {!isModel && (
+                <Avatar className="w-8 h-8">
+                    <AvatarImage src="/user-avatar.png" alt="User" />
+                    <AvatarFallback>U</AvatarFallback>
                 </Avatar>
             )}
-        </motion.div>
+        </div>
     );
 }
