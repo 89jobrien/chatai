@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ChatMessage from "@/components/chat/ChatMessage";
+import DiffViewer from "./DiffViewer"; // Import the new component
 import { applyPatch } from 'diff';
 
 interface Message {
-    role: "user" | "model" | "assistant" | "system";
+    role: "user" | "assistant";
     content: string;
 }
 
@@ -33,15 +34,17 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
         if (!prompt) return;
 
         const userMessage: Message = { role: "user", content: prompt };
-        setMessages((prev) => [...prev, userMessage]);
+        const newMessages = [...messages, userMessage];
+        setMessages(newMessages);
         setPrompt("");
+        setDiff(null); // Clear previous diff
 
         try {
             const response = await fetch("http://127.0.0.1:8000/chat/diff", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    messages: [...messages, userMessage],
+                    messages: newMessages,
                     ai_can_edit_canvas: true,
                     canvas_code: canvasCode,
                 }),
@@ -61,24 +64,23 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
 
                 accumulatedResponse += decoder.decode(value, { stream: true });
 
-                const diffStartMarker = "--- DIFF ---";
-                const diffEndMarker = "--- END DIFF ---";
-
-                if (accumulatedResponse.includes(diffEndMarker)) {
-                    const diffSection = accumulatedResponse.substring(
-                        accumulatedResponse.indexOf(diffStartMarker) + diffStartMarker.length + 1,
-                        accumulatedResponse.indexOf(diffEndMarker)
-                    );
-                    setDiff(diffSection);
-                    accumulatedResponse = accumulatedResponse.substring(accumulatedResponse.indexOf(diffEndMarker) + diffEndMarker.length + 1);
-                }
-
                 setMessages((prev) => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1].content = accumulatedResponse;
-                    return newMessages;
+                    const updatedMessages = [...prev];
+                    updatedMessages[updatedMessages.length - 1].content = accumulatedResponse;
+                    return updatedMessages;
                 });
             }
+
+            const diffStartMarker = "--- DIFF ---";
+            const diffEndMarker = "--- END DIFF ---";
+            if (accumulatedResponse.includes(diffStartMarker)) {
+                const diffSection = accumulatedResponse.substring(
+                    accumulatedResponse.indexOf(diffStartMarker) + diffStartMarker.length,
+                    accumulatedResponse.indexOf(diffEndMarker)
+                ).trim();
+                setDiff(diffSection);
+            }
+
         } catch (error) {
             console.error("Failed to fetch:", error);
             const errorMessage: Message = { role: "assistant", content: "Sorry, something went wrong." };
@@ -89,32 +91,34 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
     const handleApplyDiff = () => {
         if (diff) {
             const newCode = applyPatch(canvasCode, diff);
-            if (newCode === false) {
-                console.error("Failed to apply patch");
-            } else {
+            if (typeof newCode === 'string') {
                 setCanvasCode(newCode);
+            } else {
+                console.error("Failed to apply patch.");
             }
             setDiff(null);
         }
     };
 
-    const handleRejectDiff = () => setDiff(null);
+    const handleRejectDiff = () => {
+        setDiff(null);
+    };
 
     return (
         <Card className="flex flex-col h-full">
             <CardHeader><CardTitle>Chat</CardTitle></CardHeader>
             <CardContent className="flex-grow overflow-y-auto">
                 <div className="space-y-4">
-                    {messages.map((message, index) => <ChatMessage key={index} message={message} />)}
+                    {messages.map((message, index) => (
+                        <ChatMessage key={index} message={{ role: message.role, content: message.content }} />
+                    ))}
                     <div ref={messagesEndRef} />
                 </div>
             </CardContent>
             {diff && (
                 <div className="p-4 border-t bg-slate-50">
                     <h4 className="font-bold mb-2">Suggested Changes ✨</h4>
-                    <pre className="bg-gray-100 p-2 rounded-md overflow-x-auto text-sm whitespace-pre-wrap">
-                        {diff}
-                    </pre>
+                    <DiffViewer diffText={diff} />
                     <div className="flex justify-end gap-2 mt-2">
                         <Button onClick={handleApplyDiff} size="sm">Accept</Button>
                         <Button onClick={handleRejectDiff} size="sm" variant="outline">Reject</Button>

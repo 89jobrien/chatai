@@ -1,12 +1,11 @@
+import httpx
 import logging
-import difflib
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from core import llm
 from core.models import ChatRequest, ChatResponse, ChatRequestWithCode
 from core.vector_store import VectorStore
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -32,42 +31,41 @@ async def chat(req: ChatRequest):
 @chat_router.post("/chat/diff")
 async def chat_diff(req: ChatRequestWithCode):
     """
-    Handles chat requests that can modify code, generating a diff.
+    Handles chat requests that can modify code, returning a stream with the
+    explanation and the new code block.
     """
     if not req.ai_can_edit_canvas:
         return await chat(req)
 
     try:
         last_user_message = req.messages[-1].content
-        logger.info(f"Received diff request. User message: '{last_user_message}'")
-        logger.info(f"Original canvas code:\n---\n{req.canvas_code}\n---")
+        logger.info(f"Received code modification request: '{last_user_message}'")
 
-        # 1. Generate new code from the language model
-        new_code = await llm.get_code_suggestion(last_user_message, req.canvas_code)
-        logger.info(f"Generated new code:\n---\n{new_code}\n---")
-        
-        # 2. Create a diff
-        diff = difflib.unified_diff(
-            req.canvas_code.splitlines(keepends=True),
-            new_code.splitlines(keepends=True),
-            fromfile='original',
-            tofile='new',
+        message_dicts = tuple(msg.model_dump() for msg in req.messages)
+
+        stream = await llm.get_code_modification_chat(
+            prompt=last_user_message,
+            code=req.canvas_code,
+            messages=message_dicts
         )
-        diff_str = "".join(diff)
-        logger.info(f"Generated diff:\n---\n{diff_str}\n---")
-
-        # 3. Get a standard chat response for the conversational part
-        context = await vector_store.search(last_user_message)
-        chat_response_text = await llm.get_chat_completion(req, tuple(context))
 
         async def stream_generator():
-            if diff_str:
-                yield f"--- DIFF ---\n{diff_str}\n--- END DIFF ---\n"
-            yield chat_response_text
+            full_response = ""
+            try:
+                async for chunk in stream:
+                    if chunk.choices:
+                        content = chunk.choices[0].delta.content or ""
+                        full_response += content
+                        yield content
+            except httpx.ReadError:
+                logger.warning("Stream ended unexpectedly with a ReadError. Continuing with the response collected so far.")
+            
+            await vector_store.add(last_user_message)
+            await vector_store.add(full_response)
+
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
 
     except Exception as e:
-        # This will now log the full error traceback to your console
-        logger.error(f"An error occurred during diff generation: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred during the diff process.")
+        logger.error(f"An error occurred during code modification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred during the code modification process.")

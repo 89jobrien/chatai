@@ -1,7 +1,7 @@
 import uuid
 from typing import List
 import chromadb
-from functools import lru_cache
+from async_lru import alru_cache
 from openai import AsyncAzureOpenAI
 from core.config import settings
 
@@ -19,7 +19,7 @@ class VectorStore:
         self.collection = self.client.get_or_create_collection(settings.CHROMA_COLLECTION)
         print("✅ Vector store initialized.")
 
-    @lru_cache(maxsize=256)
+    @alru_cache(maxsize=256)
     async def _get_embedding(self, text: str) -> List[float]:
         """Generates embedding for a given text using Azure OpenAI."""
         response = await self.aclient.embeddings.create(
