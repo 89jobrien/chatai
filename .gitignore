@@ -202,14 +202,14 @@ node_modules/
 /coverage
 
 # next.js
-/.next/
+.next/
 /out/
 
 # production
 /build
 
 # misc
-.DS_Store
+*.DS_Store
 *.pem
 
 # debug
