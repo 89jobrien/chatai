@@ -10,10 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ApiStatusIndicator from '@/components/utility/ApiStatusIndicator';
 import { apiUrl } from '@/constants/util';
 
-// This interface must match the one in ChatMessage.tsx
+// CORRECTED: Message interface now uses 'content'
 interface Message {
-    role: "user" | "model";
-    parts: { text: string }[];
+    role: "user" | "model" | "assistant" | "system";
+    content: string;
 }
 
 interface ChatPanelProps {
@@ -50,7 +50,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         if (!prompt || loading) return;
 
         setLoading(true);
-        const userMessage: Message = { role: "user", parts: [{ text: prompt }] };
+        // CORRECTED: User message now uses 'content'
+        const userMessage: Message = { role: "user", content: prompt };
         const newHistory = [...history, userMessage];
         setHistory(newHistory);
         setPrompt("");
@@ -59,6 +60,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             const response = await fetch(`${apiUrl}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                // CORRECTED: Body now sends messages with 'content'
                 body: JSON.stringify({ messages: newHistory }),
             });
 
@@ -68,7 +70,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             const decoder = new TextDecoder();
             let accumulatedResponse = "";
 
-            setHistory((prev) => [...prev, { role: "model", parts: [{ text: "" }] }]);
+            // CORRECTED: Assistant message template uses 'content'
+            setHistory((prev) => [...prev, { role: "assistant", content: "" }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -76,13 +79,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 accumulatedResponse += decoder.decode(value, { stream: true });
                 setHistory((prev) => {
                     const updatedHistory = [...prev];
-                    updatedHistory[updatedHistory.length - 1].parts[0].text = accumulatedResponse;
+                    // CORRECTED: Updates the 'content' of the last message
+                    updatedHistory[updatedHistory.length - 1].content = accumulatedResponse;
                     return updatedHistory;
                 });
             }
         } catch (error) {
             console.error("Failed to fetch:", error);
-            const errorMessage: Message = { role: "model", parts: [{ text: "Sorry, something went wrong." }] };
+            const errorMessage: Message = { role: "assistant", content: "Sorry, something went wrong." };
             setHistory((prev) => [...prev, errorMessage]);
         } finally {
             setLoading(false);

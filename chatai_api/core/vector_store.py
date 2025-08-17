@@ -1,27 +1,29 @@
 import uuid
 from typing import List
 import chromadb
+from functools import lru_cache
 from openai import AsyncAzureOpenAI
-from core import config
+from core.config import settings
 
 class VectorStore:
     """Manages the ChromaDB vector store for chat memory."""
 
-    def __init__(self, db_path: str = config.CHROMA_DB_PATH):
+    def __init__(self, db_path: str = settings.CHROMA_DB_PATH):
         """Initializes a persistent ChromaDB vector store."""
         self.aclient = AsyncAzureOpenAI(
-            api_key=config.API_KEY,
-            api_version=config.API_VERSION,
-            azure_endpoint=str(config.AZURE_ENDPOINT),
+            api_key=settings.AZURE_API_KEY,
+            api_version=settings.AZURE_API_VERSION,
+            azure_endpoint=str(settings.AZURE_ENDPOINT),
         )
         self.client = chromadb.PersistentClient(path=db_path)
-        self.collection = self.client.get_or_create_collection(config.CHROMA_COLLECTION)
+        self.collection = self.client.get_or_create_collection(settings.CHROMA_COLLECTION)
         print("✅ Vector store initialized.")
 
+    @lru_cache(maxsize=256)
     async def _get_embedding(self, text: str) -> List[float]:
         """Generates embedding for a given text using Azure OpenAI."""
         response = await self.aclient.embeddings.create(
-            input=text, model=str(config.AZURE_EMBEDDER)
+            input=text, model=str(settings.AZURE_EMBEDDER)
         )
         return response.data[0].embedding
 

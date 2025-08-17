@@ -1,5 +1,3 @@
-// chatai-ui/src/components/canvas/CanvasChat.tsx
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -10,8 +8,8 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import { applyPatch } from 'diff';
 
 interface Message {
-    role: "user" | "model";
-    parts: { text: string }[];
+    role: "user" | "model" | "assistant" | "system";
+    content: string;
 }
 
 interface CanvasChatProps {
@@ -20,7 +18,7 @@ interface CanvasChatProps {
 }
 
 export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProps) {
-    const [history, setHistory] = useState<Message[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [prompt, setPrompt] = useState("");
     const [diff, setDiff] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -29,13 +27,13 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    useEffect(scrollToBottom, [history]);
+    useEffect(scrollToBottom, [messages]);
 
     const send = async () => {
         if (!prompt) return;
 
-        const userMessage: Message = { role: "user", parts: [{ text: prompt }] };
-        setHistory((prev) => [...prev, userMessage]);
+        const userMessage: Message = { role: "user", content: prompt };
+        setMessages((prev) => [...prev, userMessage]);
         setPrompt("");
 
         try {
@@ -43,7 +41,7 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    messages: [...history, userMessage],
+                    messages: [...messages, userMessage],
                     ai_can_edit_canvas: true,
                     canvas_code: canvasCode,
                 }),
@@ -55,7 +53,7 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
             const decoder = new TextDecoder();
             let accumulatedResponse = "";
 
-            setHistory((prev) => [...prev, { role: 'model', parts: [{ text: '' }] }]);
+            setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -75,16 +73,16 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
                     accumulatedResponse = accumulatedResponse.substring(accumulatedResponse.indexOf(diffEndMarker) + diffEndMarker.length + 1);
                 }
 
-                setHistory((prev) => {
-                    const newHistory = [...prev];
-                    newHistory[newHistory.length - 1].parts[0].text = accumulatedResponse;
-                    return newHistory;
+                setMessages((prev) => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1].content = accumulatedResponse;
+                    return newMessages;
                 });
             }
         } catch (error) {
             console.error("Failed to fetch:", error);
-            const errorMessage: Message = { role: "model", parts: [{ text: "Sorry, something went wrong." }] };
-            setHistory((prev) => [...prev, errorMessage]);
+            const errorMessage: Message = { role: "assistant", content: "Sorry, something went wrong." };
+            setMessages((prev) => [...prev, errorMessage]);
         }
     };
 
@@ -93,7 +91,6 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
             const newCode = applyPatch(canvasCode, diff);
             if (newCode === false) {
                 console.error("Failed to apply patch");
-                // Optionally, inform the user that the patch could not be applied
             } else {
                 setCanvasCode(newCode);
             }
@@ -108,14 +105,16 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
             <CardHeader><CardTitle>Chat</CardTitle></CardHeader>
             <CardContent className="flex-grow overflow-y-auto">
                 <div className="space-y-4">
-                    {history.map((message, index) => <ChatMessage key={index} message={message} />)}
+                    {messages.map((message, index) => <ChatMessage key={index} message={message} />)}
                     <div ref={messagesEndRef} />
                 </div>
             </CardContent>
             {diff && (
                 <div className="p-4 border-t bg-slate-50">
                     <h4 className="font-bold mb-2">Suggested Changes ✨</h4>
-                    <pre className="bg-gray-100 p-2 rounded-md overflow-x-auto text-sm">{diff}</pre>
+                    <pre className="bg-gray-100 p-2 rounded-md overflow-x-auto text-sm whitespace-pre-wrap">
+                        {diff}
+                    </pre>
                     <div className="flex justify-end gap-2 mt-2">
                         <Button onClick={handleApplyDiff} size="sm">Accept</Button>
                         <Button onClick={handleRejectDiff} size="sm" variant="outline">Reject</Button>

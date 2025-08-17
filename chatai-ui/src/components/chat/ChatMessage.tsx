@@ -1,22 +1,22 @@
-// chatai-ui/src/components/chat/ChatMessage.tsx
-
 "use client";
 
+import React, { memo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CodeBlock from "./CodeBlock";
 
 interface Message {
-    role: "user" | "model";
-    parts: { text: string }[];
+    role: "user" | "model" | "assistant" | "system";
+    content: string;
 }
 
 interface ChatMessageProps {
     message: Message;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
-    const { role, parts } = message;
-    const isModel = role === "model";
+const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
+    const { role, content } = message;
+    const isModel = role === "model" || role === "assistant";
+    const displayContent = content.split('\n---\n\nUser Message:\n---\n')[1] || content;
 
     return (
         <div className={`flex items-start gap-4 ${isModel ? "" : "justify-end"}`}>
@@ -30,19 +30,15 @@ export default function ChatMessage({ message }: ChatMessageProps) {
                 className={`rounded-lg p-3 max-w-[85%] ${isModel ? "bg-muted" : "bg-primary text-primary-foreground"
                     }`}
             >
-                {parts.map((part, index) => {
-                    const codeMatch = part.text.match(/```(\w+)?\n([\s\S]+?)```/);
+                {(() => {
+                    const codeMatch = displayContent.match(/```(\w+)?\n([\s\S]+?)```/);
                     if (codeMatch) {
                         const language = codeMatch[1] || "plaintext";
                         const code = codeMatch[2];
-                        return <CodeBlock key={index} language={language} code={code} />;
+                        return <CodeBlock language={language} code={code} />;
                     }
-                    return (
-                        <p key={index} className="whitespace-pre-wrap">
-                            {part.text}
-                        </p>
-                    );
-                })}
+                    return <p className="whitespace-pre-wrap">{displayContent}</p>;
+                })()}
             </div>
             {!isModel && (
                 <Avatar className="w-8 h-8">
@@ -52,4 +48,8 @@ export default function ChatMessage({ message }: ChatMessageProps) {
             )}
         </div>
     );
-}
+});
+
+ChatMessage.displayName = "ChatMessage";
+
+export default ChatMessage;
