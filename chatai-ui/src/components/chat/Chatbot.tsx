@@ -6,12 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ChatMessage from "@/components/chat/ChatMessage";
 import { apiUrl } from "@/constants/util";
+import { Message } from "@/types";
 
-// CORRECTED: Message interface now uses 'content'
-interface Message {
-    role: "user" | "model" | "assistant" | "system";
-    content: string;
-}
 
 export default function Chatbot() {
     const [history, setHistory] = useState<Message[]>([]);

@@ -5,13 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ChatMessage from "@/components/chat/ChatMessage";
-import DiffViewer from "./DiffViewer"; // Import the new component
+import DiffViewer from "./DiffViewer";
 import { applyPatch } from 'diff';
-
-interface Message {
-    role: "user" | "assistant";
-    content: string;
-}
+import { Message } from "@/types";
 
 interface CanvasChatProps {
     canvasCode: string;
@@ -37,7 +33,7 @@ export default function CanvasChat({ canvasCode, setCanvasCode }: CanvasChatProp
         const newMessages = [...messages, userMessage];
         setMessages(newMessages);
         setPrompt("");
-        setDiff(null); // Clear previous diff
+        setDiff(null);
 
         try {
             const response = await fetch("http://127.0.0.1:8000/chat/diff", {

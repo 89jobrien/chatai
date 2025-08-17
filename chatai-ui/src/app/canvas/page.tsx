@@ -17,9 +17,6 @@ export default function CanvasPage() {
     const [isCanvasCollapsed, setIsCanvasCollapsed] = useState(false);
 
     const handleToggleCanvas = () => {
-        // This function's primary purpose is now to toggle UI elements
-        // that depend on the collapsed state, like the button in the other panel.
-        // The actual collapsing is handled by the user dragging or the panel's internal logic.
         setIsCanvasCollapsed(!isCanvasCollapsed);
     };
 

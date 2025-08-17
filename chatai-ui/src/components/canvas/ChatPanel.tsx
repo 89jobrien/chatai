@@ -9,12 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ApiStatusIndicator from '@/components/utility/ApiStatusIndicator';
 import { apiUrl } from '@/constants/util';
-
-// CORRECTED: Message interface now uses 'content'
-interface Message {
-    role: "user" | "model" | "assistant" | "system";
-    content: string;
-}
+import { Message } from "@/types";
 
 interface ChatPanelProps {
     isCanvasCollapsed: boolean;
@@ -50,7 +45,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         if (!prompt || loading) return;
 
         setLoading(true);
-        // CORRECTED: User message now uses 'content'
         const userMessage: Message = { role: "user", content: prompt };
         const newHistory = [...history, userMessage];
         setHistory(newHistory);
@@ -60,7 +54,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             const response = await fetch(`${apiUrl}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                // CORRECTED: Body now sends messages with 'content'
                 body: JSON.stringify({ messages: newHistory }),
             });
 

@@ -1,13 +1,9 @@
 "use client";
 
-import React, { memo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CodeBlock from "./CodeBlock";
-
-interface Message {
-    role: "user" | "model" | "assistant" | "system";
-    content: string;
-}
+import { memo } from "react";
+import { Message } from "@/types";
 
 interface ChatMessageProps {
     message: Message;
@@ -15,8 +11,7 @@ interface ChatMessageProps {
 
 const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
     const { role, content } = message;
-    const isModel = role === "model" || role === "assistant";
-    const displayContent = content.split('\n---\n\nUser Message:\n---\n')[1] || content;
+    const isModel = role === "assistant";
 
     return (
         <div className={`flex items-start gap-4 ${isModel ? "" : "justify-end"}`}>
@@ -30,15 +25,15 @@ const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
                 className={`rounded-lg p-3 max-w-[85%] ${isModel ? "bg-muted" : "bg-primary text-primary-foreground"
                     }`}
             >
-                {(() => {
-                    const codeMatch = displayContent.match(/```(\w+)?\n([\s\S]+?)```/);
-                    if (codeMatch) {
-                        const language = codeMatch[1] || "plaintext";
-                        const code = codeMatch[2];
-                        return <CodeBlock language={language} code={code} />;
+                {content.split("```").map((part, index) => {
+                    if (index % 2 === 1) {
+                        const language = part.split('\n')[0];
+                        const code = part.substring(language.length + 1);
+                        return <CodeBlock key={index} language={language} code={code} />;
+                    } else {
+                        return <p key={index} className="whitespace-pre-wrap">{part}</p>;
                     }
-                    return <p className="whitespace-pre-wrap">{displayContent}</p>;
-                })()}
+                })}
             </div>
             {!isModel && (
                 <Avatar className="w-8 h-8">

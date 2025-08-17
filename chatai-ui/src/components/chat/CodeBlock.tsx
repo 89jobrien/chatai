@@ -1,11 +1,8 @@
-// chatai-ui/src/components/chat/CodeBlock.tsx
-
 "use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-// Define the props for the component
 interface CodeBlockProps {
     language: string;
     code: string;

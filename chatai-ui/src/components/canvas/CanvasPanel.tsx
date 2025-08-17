@@ -12,8 +12,8 @@ import 'prismjs/components/prism-markup';
 import { ChevronsLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '../ui/checkbox';
-import { Label } from '../ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 const highlight = (code: string) => Prism.highlight(code, Prism.languages.javascript, 'javascript');
 
@@ -42,9 +42,7 @@ const CanvasPanel: React.FC<CanvasPanelProps> = ({
                     </Button>
                 </div>
             </CardHeader>
-            {/* FIX: Add overflow-hidden to constrain the child element */}
             <CardContent className="flex-grow flex flex-col overflow-hidden">
-                {/* FIX: Remove h-full to allow flexbox to correctly calculate height */}
                 <div className="border rounded-md overflow-y-auto w-full bg-[#2d2d2d] flex-grow">
                     <Editor
                         value={canvasContent}
@@ -56,7 +54,6 @@ const CanvasPanel: React.FC<CanvasPanelProps> = ({
                             fontSize: 14,
                             outline: 'none',
                             border: 'none',
-                            // FIX: Ensure editor takes full height of its container
                             minHeight: '100%',
                         }}
                     />
