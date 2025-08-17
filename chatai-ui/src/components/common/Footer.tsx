@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import ApiStatusIndicator from "./ApiStatusIndicator";
+import ApiStatusIndicator from "../utility/ApiStatusIndicator";
 
 export default function Footer() {
     return (

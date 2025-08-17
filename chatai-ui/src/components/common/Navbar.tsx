@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Github, MessageSquare, Bot, Code, Lock } from "lucide-react";
+import { Github, MessageSquare, Bot, Code, Lock, Brush } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,16 @@ export default function Navbar() {
                 <div className="hidden md:flex">
                     <NavigationMenu>
                         <NavigationMenuList>
+                            <NavigationMenuItem>
+                                <Link href="/chat" className={navigationMenuTriggerStyle()}>
+                                    Chat
+                                </Link>
+                            </NavigationMenuItem>
+                            <NavigationMenuItem>
+                                <Link href="/canvas" className={navigationMenuTriggerStyle()}>
+                                    Canvas
+                                </Link>
+                            </NavigationMenuItem>
                             <NavigationMenuItem>
                                 <NavigationMenuTrigger>Features</NavigationMenuTrigger>
                                 <NavigationMenuContent>
