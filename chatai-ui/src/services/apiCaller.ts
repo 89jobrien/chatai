@@ -2,12 +2,6 @@ import { Message } from "@/types";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
-/**
- * Calls the backend to get a streaming response for code modification.
- * @param messages The history of messages.
- * @param canvasCode The current code on the canvas.
- * @returns A ReadableStream from the backend.
- */
 export const streamDiffResponse = async (
   messages: Message[],
   canvasCode: string
