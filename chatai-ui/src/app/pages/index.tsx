@@ -22,7 +22,6 @@ export default function Home() {
     const send = async () => {
         if (!prompt) return;
 
-        // CORRECTED: User message now uses 'content' and includes 'id'
         const userMessage: Message = { id: Date.now().toString(), role: "user", content: prompt };
         setHistory((prev) => [...prev, userMessage]);
         setPrompt("");
@@ -31,7 +30,6 @@ export default function Home() {
             const response = await fetch(`${apiUrl}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                // CORRECTED: Body now sends messages with 'content'
                 body: JSON.stringify({ messages: [...history, userMessage] }),
             });
 
@@ -40,7 +38,6 @@ export default function Home() {
             const decoder = new TextDecoder();
             let accumulatedResponse = "";
 
-            // CORRECTED: Assistant message template uses 'content'
             setHistory((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "" }]);
 
             while (true) {
@@ -49,7 +46,6 @@ export default function Home() {
                 accumulatedResponse += decoder.decode(value, { stream: true });
                 setHistory((prev) => {
                     const newHistory = [...prev];
-                    // CORRECTED: Updates the 'content' of the last message
                     newHistory[newHistory.length - 1].content = accumulatedResponse;
                     return newHistory;
                 });
