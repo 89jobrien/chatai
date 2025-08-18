@@ -15,7 +15,6 @@ vector_store = VectorStore()
 
 @chat_router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    # This function remains unchanged
     try:
         last_user_message = req.messages[-1].content
         context = await vector_store.search(last_user_message)
@@ -40,12 +39,10 @@ async def chat_diff(req: ChatRequestWithCode):
         last_user_message = req.messages[-1].content
         logger.info(f"Received code modification request: '{last_user_message}'")
 
-        # Get the new code and conversational response
         new_code = await llm.get_code_suggestion(last_user_message, req.canvas_code)
         context = await vector_store.search(last_user_message)
         chat_response_text = await llm.get_chat_completion(req, tuple(context))
 
-        # Generate the diff
         diff_str = "".join(difflib.unified_diff(
             req.canvas_code.splitlines(keepends=True),
             new_code.splitlines(keepends=True),
@@ -54,20 +51,16 @@ async def chat_diff(req: ChatRequestWithCode):
         ))
         
         async def stream_generator():
-            # 1. Stream the conversational text payload
             text_payload = json.dumps({"type": "text", "payload": chat_response_text})
             yield f"{text_payload}\n"
             
-            # 2. Stream the diff payload for the UI component
             if diff_str:
                 diff_payload = json.dumps({"type": "diff", "payload": diff_str})
                 yield f"{diff_payload}\n"
 
-            # Add to memory after streaming is complete
             await vector_store.add(last_user_message)
             await vector_store.add(chat_response_text)
 
-        # Use the application/x-ndjson media type for newline-delimited JSON
         return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
     except Exception as e:
