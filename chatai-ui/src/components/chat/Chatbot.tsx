@@ -23,7 +23,6 @@ export default function Chatbot() {
     const send = async () => {
         if (!prompt) return;
 
-        // CORRECTED: User message now uses 'content'
         const userMessage: Message = { role: "user", content: prompt };
         setHistory((prev) => [...prev, userMessage]);
         setPrompt("");
