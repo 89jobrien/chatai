@@ -52,7 +52,7 @@ async def chat_diff(req: ChatRequestWithCode):
             fromfile='original',
             tofile='new',
         ))
-
+        
         async def stream_generator():
             # 1. Stream the conversational text payload
             text_payload = json.dumps({"type": "text", "payload": chat_response_text})

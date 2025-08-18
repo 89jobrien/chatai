@@ -45,7 +45,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         if (!prompt || loading) return;
 
         setLoading(true);
-        const userMessage: Message = { role: "user", content: prompt };
+        const userMessage: Message = { id: Date.now().toString(), role: "user", content: prompt };
         const newHistory = [...history, userMessage];
         setHistory(newHistory);
         setPrompt("");
@@ -63,8 +63,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             const decoder = new TextDecoder();
             let accumulatedResponse = "";
 
-            // CORRECTED: Assistant message template uses 'content'
-            setHistory((prev) => [...prev, { role: "assistant", content: "" }]);
+            setHistory((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "" }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -72,14 +71,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 accumulatedResponse += decoder.decode(value, { stream: true });
                 setHistory((prev) => {
                     const updatedHistory = [...prev];
-                    // CORRECTED: Updates the 'content' of the last message
                     updatedHistory[updatedHistory.length - 1].content = accumulatedResponse;
                     return updatedHistory;
                 });
             }
         } catch (error) {
             console.error("Failed to fetch:", error);
-            const errorMessage: Message = { role: "assistant", content: "Sorry, something went wrong." };
+            const errorMessage: Message = { id: Date.now().toString(), role: "assistant", content: "Sorry, something went wrong." };
             setHistory((prev) => [...prev, errorMessage]);
         } finally {
             setLoading(false);

@@ -22,8 +22,8 @@ export default function Home() {
     const send = async () => {
         if (!prompt) return;
 
-        // CORRECTED: User message now uses 'content'
-        const userMessage: Message = { role: "user", content: prompt };
+        // CORRECTED: User message now uses 'content' and includes 'id'
+        const userMessage: Message = { id: Date.now().toString(), role: "user", content: prompt };
         setHistory((prev) => [...prev, userMessage]);
         setPrompt("");
 
@@ -41,7 +41,7 @@ export default function Home() {
             let accumulatedResponse = "";
 
             // CORRECTED: Assistant message template uses 'content'
-            setHistory((prev) => [...prev, { role: "assistant", content: "" }]);
+            setHistory((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "" }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -57,6 +57,7 @@ export default function Home() {
         } catch (error) {
             console.error("Failed to fetch:", error);
             const errorMessage: Message = {
+                id: Date.now().toString(),
                 role: "assistant",
                 content: "Sorry, something went wrong.",
             };

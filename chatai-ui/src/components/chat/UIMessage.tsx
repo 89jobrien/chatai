@@ -1,17 +1,15 @@
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import CodeBlock from "./CodeBlock";
-import { memo } from "react";
+import { UIMessage } from "@ai-sdk/react";
 import DiffViewer from "../canvas/DiffViewer";
-import { Message } from "@/types";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
-interface ChatMessageProps {
-    message: Message;
+interface UIMessageProps {
+    message: UIMessage;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
-    const { role, content, diff } = message;
+export const UIMessageComponent: React.FC<UIMessageProps> = ({ message }) => {
+    const { role, parts } = message;
     const isModel = role === "assistant";
 
     return (
@@ -26,16 +24,17 @@ const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
                 className={`rounded-lg p-3 max-w-[85%] ${isModel ? "bg-muted" : "bg-primary text-primary-foreground"
                     }`}
             >
-                {content.split("```").map((part, index) => {
-                    if (index % 2 === 1) {
-                        const language = part.split('\n')[0];
-                        const code = part.substring(language.length + 1);
-                        return <CodeBlock key={index} language={language} code={code} />;
-                    } else {
-                        return <p key={index} className="whitespace-pre-wrap">{part}</p>;
+                {parts.map((part, index) => {
+                    if (part.type === 'text') {
+                        return <p key={index} className="whitespace-pre-wrap">{part.text}</p>;
                     }
+                    if (part.type.startsWith('tool-') && part.type.includes('applyCodeDiff')) {
+                        if ('output' in part && typeof part.output === 'string') {
+                            return <DiffViewer key={index} diffText={part.output} />;
+                        }
+                    }
+                    return null;
                 })}
-                {diff && <DiffViewer diffText={diff} />}
             </div>
             {!isModel && (
                 <Avatar className="w-8 h-8">
@@ -45,8 +44,4 @@ const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
             )}
         </div>
     );
-});
-
-ChatMessage.displayName = "ChatMessage";
-
-export default ChatMessage;
+};
