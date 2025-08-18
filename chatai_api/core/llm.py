@@ -24,7 +24,6 @@ def to_openai_message(msg):
 @alru_cache(maxsize=128)
 async def get_chat_completion(req: ChatRequest, context: Tuple[str, ...]) -> str:
     """Gets a chat completion from Azure OpenAI."""
-    # This function remains cached as it's more likely to have repeated requests.
     system_prompt = (
         "You are a helpful AI assistant. "
         "Use the following context from our past conversation to answer the user's question. "
